@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { useBookDetail } from '../../hooks/useBookDetail';
 import { useLoans } from '../../hooks/useLoans';
-import { View, Text, ScrollView, StatusBar, ActivityIndicator, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
+import { View, Text, ScrollView, StatusBar, ActivityIndicator, TouchableOpacity, StyleSheet, TextInput, Alert } from 'react-native';
 
 export default function BookDetailScreen({ route }) {
   const { id } = route.params;
@@ -11,6 +11,7 @@ export default function BookDetailScreen({ route }) {
     loading,
     isFavorite,
     annotations,
+    currentLoan,
     loadingRead,
     fetchDetail,
     toggleFavorite,
@@ -19,7 +20,7 @@ export default function BookDetailScreen({ route }) {
     readDigital
   } = useBookDetail(id);
 
-  const { borrowing, requestBorrow } = useLoans();
+  const { borrowing, requestBorrow, requestReturn } = useLoans();
   const [newNote, setNewNote] = useState('');
 
   useEffect(() => {
@@ -89,18 +90,88 @@ export default function BookDetailScreen({ route }) {
           ))}
         </View>
         <View style={styles.buttonRow}>
-          <TouchableOpacity style={[styles.borrowBtn, (borrowing || book.total_copies === 0) && { opacity: 0.6 }]} onPress={() => requestBorrow(id)} disabled={borrowing || book.total_copies === 0}>
-            <Text style={styles.borrowText}>{borrowing ? 'Memproses...' : (book.total_copies > 0 ? '📖 Pinjam' : '❌ Habis')}</Text>
-          </TouchableOpacity>
-          {book.files && book.files.length > 0 && (
+          {currentLoan ? (
+            <TouchableOpacity
+              activeOpacity={currentLoan.status === 'active' && book.files?.length > 0 ? 0.7 : 1}
+              onPress={() => {
+                if (currentLoan.status === 'active' && book.files?.length > 0) {
+                  readDigital();
+                }
+              }}
+              style={[
+                styles.statusBanner,
+                currentLoan.status === 'pending' ? styles.pendingBanner : styles.activeBanner,
+                (currentLoan.status === 'active' && book.files?.length > 0) && styles.activeReadBanner
+              ]}
+            >
+              <Ionicons
+                name={currentLoan.status === 'pending' ? "time-outline" : "book-outline"}
+                size={22}
+                color={currentLoan.status === 'pending' ? "#b45309" : "#ffffff"}
+              />
+              <View style={styles.statusTextContainer}>
+                <Text style={[styles.statusTitle, currentLoan.status === 'pending' ? { color: '#b45309' } : { color: '#ffffff' }]}>
+                  {currentLoan.status === 'pending' ? 'Menunggu Persetujuan' : 'Buku Siap Dibaca'}
+                </Text>
+                <Text style={[styles.statusSub, currentLoan.status === 'active' && { color: 'rgba(255,255,255,0.8)' }]}>
+                  {currentLoan.status === 'pending'
+                    ? 'Permintaan pinjaman kamu sedang diproses staff.'
+                    : `Klik di sini untuk mulai membaca buku.`}
+                </Text>
+              </View>
+              {currentLoan.status === 'active' && book.files?.length > 0 && (
+                <Ionicons name="chevron-forward" size={20} color="#ffffff" />
+              )}
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.borrowBtn, (borrowing || book.total_copies === 0) && { opacity: 0.6 }]}
+              onPress={async () => {
+                const success = await requestBorrow(id);
+                if (success) fetchDetail();
+              }}
+              disabled={borrowing || book.total_copies === 0}
+            >
+              <Text style={styles.borrowText}>
+                {borrowing ? 'Memproses...' : (book.total_copies > 0 ? '📖 Pinjam Buku' : '❌ Stok Habis')}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {!currentLoan && book.files && book.files.length > 0 && (
             <TouchableOpacity style={styles.readBtn} onPress={readDigital} disabled={loadingRead}>
               <Text style={styles.readText}>{loadingRead ? '...' : '📱 Baca'}</Text>
             </TouchableOpacity>
           )}
+
           <TouchableOpacity style={[styles.favoriteBtn, isFavorite && { backgroundColor: '#ffe4e6' }]} onPress={toggleFavorite}>
             <Ionicons name={isFavorite ? "heart" : "heart-outline"} size={24} color={isFavorite ? "#e94560" : "#64748b"} />
           </TouchableOpacity>
         </View>
+
+        {currentLoan && (currentLoan.status === 'active' || currentLoan.status === 'overdue') && (
+          <TouchableOpacity
+            style={styles.returnRequestBtn}
+            onPress={() => {
+              Alert.alert(
+                'Kembalikan Buku',
+                'Apakah Anda yakin ingin mengembalikan buku ini sekarang?',
+                [
+                  { text: 'Batal', style: 'cancel' },
+                  {
+                    text: 'Ya, Kembalikan', onPress: async () => {
+                      const success = await requestReturn(currentLoan.loans_id);
+                      if (success) fetchDetail();
+                    }
+                  }
+                ]
+              );
+            }}
+          >
+            <Ionicons name="arrow-undo-outline" size={18} color="#6366f1" />
+            <Text style={styles.returnRequestText}>Ajukan Pengembalian</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </ScrollView>
   );
@@ -139,4 +210,33 @@ const styles = StyleSheet.create({
   noteContent: { fontSize: 13, color: '#334155', lineHeight: 18 },
   noteFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
   noteDate: { fontSize: 11, color: '#94a3af' },
+
+  // Loan Status
+  statusBanner: { flex: 1, flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 16, gap: 12, borderWidth: 1 },
+  pendingBanner: { backgroundColor: '#fffbeb', borderColor: '#fde68a' },
+  activeBanner: { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' },
+  activeReadBanner: { backgroundColor: '#6366f1', borderColor: '#4f46e5' },
+  statusTextContainer: { flex: 1 },
+  statusTitle: { fontSize: 14, fontWeight: 'bold' },
+  statusSub: { fontSize: 11, color: '#64748b', marginTop: 2 },
+
+  infoBox: { flexDirection: 'row', backgroundColor: '#eef2ff', padding: 12, borderRadius: 12, marginTop: 16, gap: 8, alignItems: 'center' },
+  infoText: { flex: 1, fontSize: 12, color: '#4338ca', lineHeight: 18 },
+  returnRequestBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f5f3ff',
+    padding: 12,
+    borderRadius: 12,
+    marginTop: 16,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#e0e7ff'
+  },
+  returnRequestText: {
+    color: '#6366f1',
+    fontWeight: 'bold',
+    fontSize: 14
+  }
 });

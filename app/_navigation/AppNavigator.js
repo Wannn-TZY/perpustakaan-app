@@ -5,6 +5,8 @@ import { AuthContext } from '../context/AuthContext';
 // AUTH
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/Registerscreen';
+import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
+import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 
 // MAIN
 import MainTabNavigator from './MainTabNavigator';
@@ -141,6 +143,22 @@ export default function AppNavigator() {
             options={{
               headerShown: false,
               animation: 'fade',
+            }}
+          />
+          <Stack.Screen
+            name="ForgotPassword"
+            component={ForgotPasswordScreen}
+            options={{
+              headerShown: false,
+              animation: 'slide_from_right',
+            }}
+          />
+          <Stack.Screen
+            name="ResetPassword"
+            component={ResetPasswordScreen}
+            options={{
+              headerShown: false,
+              animation: 'slide_from_right',
             }}
           />
         </>

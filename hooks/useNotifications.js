@@ -10,7 +10,7 @@ export const useNotifications = () => {
         setLoading(true);
         try {
             const res = await notificationService.getNotifications();
-            setNotifications(res.data || []);
+            setNotifications(res.data?.data || []);
         } catch (error) {
             console.error('Error fetching notifications:', error);
         } finally {

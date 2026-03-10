@@ -5,9 +5,17 @@ const bookService = {
     /**
      * Fetch books with filters
      * @param {object} params { q, category_id, is_featured }
+     * @param {object} config axios config overrides (e.g. signal)
      */
-    getBooks: async (params = {}) => {
-        return api.get('/books', { params });
+    getBooks: async (params = {}, config = {}) => {
+        return api.get('/books', { params, ...config });
+    },
+
+    /**
+     * Get discovery data (trending, categories, initial books)
+     */
+    getDiscovery: async (params = {}, config = {}) => {
+        return api.get('/books/discovery', { params, ...config });
     },
 
     /**
@@ -40,7 +48,10 @@ const bookService = {
         if (isFavorite) {
             return api.delete(`/bookmarks/${bookmarkId}`);
         } else {
-            return api.post(`/books/${id}/bookmark`);
+            return api.post(`/books/${id}/bookmark`, {
+                page_location: '0', // Default value for validation
+                note: 'Favorited from App'
+            });
         }
     },
 

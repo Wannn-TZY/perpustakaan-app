@@ -12,9 +12,28 @@ const loanService = {
     /**
      * Request borrowing a book
      * @param {number|string} bookId 
+     * @param {string} type 'digital' or 'fisik'
      */
-    requestLoan: async (bookId) => {
-        return api.post(`/books/${bookId}/loan`);
+    requestLoan: async (bookId, type = 'fisik') => {
+        return api.post(`/books/${bookId}/loan`, {
+            loan_type: type
+        });
+    },
+
+    /**
+     * Cancel a loan request
+     * @param {number|string} loanId 
+     */
+    cancelLoan: async (loanId) => {
+        return api.post(`/loans/${loanId}/cancel`);
+    },
+
+    /**
+     * Request returning a book
+     * @param {number|string} loanId 
+     */
+    requestReturn: async (loanId) => {
+        return api.post(`/loans/${loanId}/return-request`);
     },
 
     /**

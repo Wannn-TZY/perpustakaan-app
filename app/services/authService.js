@@ -43,10 +43,17 @@ const authService = {
     },
 
     /**
-     * Resend email verification
+     * Verify OTP Code
      */
-    resendVerificationEmail: async () => {
-        return api.post('/auth/email/resend');
+    verifyOTP: async (code) => {
+        return api.post('/auth/verify-otp', { code: code.trim() });
+    },
+
+    /**
+     * Resend OTP Code
+     */
+    resendOTP: async () => {
+        return api.post('/auth/resend-otp');
     },
 
     /**
@@ -54,6 +61,20 @@ const authService = {
      */
     deleteAccount: async () => {
         return api.delete('/auth/delete-account');
+    },
+
+    /**
+     * Forgot Password - Request Token
+     */
+    forgotPassword: async (email) => {
+        return api.post('/auth/forgot-password', { email });
+    },
+
+    /**
+     * Reset Password - Submit Token & New Password
+     */
+    resetPassword: async (data) => {
+        return api.post('/auth/reset-password', data);
     },
 };
 

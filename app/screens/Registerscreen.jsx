@@ -12,6 +12,7 @@ import {
 import { useState, useRef, useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../hooks/useAuth';
+import { useToast } from '../context/ToastContext';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
 
@@ -33,6 +34,7 @@ const fieldsData = [
 ];
 
 export default function RegisterScreen({ navigation }) {
+  const { showToast } = useToast();
   const { register, loading, error, setError, fieldErrors, setFieldErrors } = useAuth();
 
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', confirm: '' });
@@ -72,13 +74,18 @@ export default function RegisterScreen({ navigation }) {
   const handleRegister = async () => {
     if (!validate()) return;
 
-    await register({
+    const result = await register({
       name: form.name.trim(),
       email: form.email.trim().toLowerCase(),
       phone: form.phone.trim() || null,
       password: form.password,
       role,
     });
+
+    if (result && result.success) {
+      showToast("Registrasi Berhasil! Silakan cek email kamu untuk kode verifikasi.", "success");
+      setTimeout(() => navigation.navigate('Login'), 2000);
+    }
   };
 
   const strength = pwStrength();

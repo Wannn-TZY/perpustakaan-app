@@ -118,7 +118,10 @@ export default function LoginScreen({ navigation }) {
             onPasswordToggle={() => setShowPassword(!showPassword)}
             onSubmitEditing={handleLogin}
             rightElement={
-              <TouchableOpacity style={styles.forgotBtn}>
+              <TouchableOpacity
+                style={styles.forgotBtn}
+                onPress={() => navigation.navigate('ForgotPassword')}
+              >
                 <Text style={styles.forgotText}>Lupa?</Text>
               </TouchableOpacity>
             }
@@ -141,17 +144,7 @@ export default function LoginScreen({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          {/* Role hint */}
-          <View style={styles.roleHint}>
-            <Text style={styles.roleHintText}>
-              Role yang didukung:{'  '}
-              {['admin', 'staff', 'member', 'public'].map((r, i) => (
-                <Text key={r} style={styles.rolePill}>
-                  {r}{i < 3 ? '  ' : ''}
-                </Text>
-              ))}
-            </Text>
-          </View>
+
 
         </Animated.View>
 
@@ -279,16 +272,7 @@ const styles = StyleSheet.create({
   registerText: { fontSize: 13, color: '#9ca3af' },
   registerLink: { fontSize: 13, fontWeight: '700', color: '#6c63ff' },
 
-  // Role hint
-  roleHint: {
-    marginTop: 20,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
-    alignItems: 'center',
-  },
-  roleHintText: { fontSize: 11, color: '#c4c9d4', letterSpacing: 0.3 },
-  rolePill: { color: '#9ca3af', fontWeight: '600' },
+
 
   // Footer
   footer: { alignItems: 'center', paddingTop: 32, gap: 6 },

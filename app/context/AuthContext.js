@@ -1,8 +1,8 @@
 // context/AuthContext.js
 
-import { createContext, useState, useEffect } from 'react';
+import { createContext, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import api, { setAuthToken } from '../services/api';
+import api, { setAuthToken, setLogoutHandler } from '../services/api';
 
 export const AuthContext = createContext();
 
@@ -71,16 +71,22 @@ export function AuthProvider({ children }) {
   };
 
   // ── Logout ──────────────────────────────────────
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
-      await api.post('/auth/logout').catch(() => { });
+      if (token) {
+        await api.post('/auth/logout').catch(() => { });
+      }
     } finally {
       setAuthToken(null);
       setUserState(null);
       setTokenState(null);
       await AsyncStorage.multiRemove([STORAGE_USER, STORAGE_TOKEN]);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    setLogoutHandler(logout);
+  }, [logout]);
 
   return (
     <AuthContext.Provider

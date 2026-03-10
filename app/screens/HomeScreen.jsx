@@ -11,74 +11,27 @@ import {
   Dimensions,
   Animated,
 } from 'react-native';
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useBooks } from '../../hooks/useBooks';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = width - 48;
 
-export default function HomeScreen({ navigation }) {
-  const {
-    books,
-    trendingBooks,
-    categories,
-    loading,
-    refreshing,
-    fetchBooks,
-    fetchTrending,
-    fetchCategories,
-    onRefresh
-  } = useBooks();
-
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All');
-
-  const sliderRef = useRef(null);
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const init = async () => {
-      await Promise.all([
-        fetchBooks(),
-        fetchTrending(),
-        fetchCategories()
-      ]);
-    };
-    init();
-
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 600,
-      useNativeDriver: true,
-    }).start();
-  }, []);
-
-  useEffect(() => {
-    if (trendingBooks.length === 0) return;
-    const interval = setInterval(() => {
-      const nextIndex = (currentSlide + 1) % trendingBooks.length;
-      try {
-        sliderRef.current?.scrollToIndex({ index: nextIndex, animated: true });
-      } catch (error) { }
-      setCurrentSlide(nextIndex);
-    }, 4500);
-    return () => clearInterval(interval);
-  }, [currentSlide, trendingBooks]);
-
-  const handleSearch = (text) => {
-    setSearchQuery(text);
-    fetchBooks({ q: text, category_id: selectedCategory === 'All' ? undefined : selectedCategory });
-  };
-
-  const filterByCategory = (catId) => {
-    setSelectedCategory(catId);
-    fetchBooks({
-      category_id: catId === 'All' ? undefined : catId,
-      q: searchQuery
-    });
-  };
-
+// Reusable/Stable Search Component to prevent focus loss
+const SearchHeader = React.memo(({
+  fadeAnim,
+  searchQuery,
+  onSearchChange,
+  selectedCategory,
+  onCategoryChange,
+  categories,
+  trendingBooks,
+  navigation,
+  currentSlide,
+  sliderRef,
+  setCurrentSlide,
+  booksCount
+}) => {
   const renderTrending = () => (
     <View style={styles.sliderSection}>
       <View style={styles.sliderLabelRow}>
@@ -134,7 +87,7 @@ export default function HomeScreen({ navigation }) {
     </View>
   );
 
-  const renderHeader = () => (
+  return (
     <Animated.View style={{ opacity: fadeAnim }}>
       <View style={styles.hero}>
         <View style={styles.heroBadge}>
@@ -152,10 +105,10 @@ export default function HomeScreen({ navigation }) {
             placeholder="Judul, penulis, atau penerbit..."
             placeholderTextColor="#9ca3af"
             value={searchQuery}
-            onChangeText={handleSearch}
+            onChangeText={onSearchChange}
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => handleSearch('')} style={styles.clearBtn}>
+            <TouchableOpacity onPress={() => onSearchChange('')} style={styles.clearBtn}>
               <Text style={styles.clearIcon}>✕</Text>
             </TouchableOpacity>
           )}
@@ -186,7 +139,7 @@ export default function HomeScreen({ navigation }) {
         renderItem={({ item }) => (
           <TouchableOpacity
             style={[styles.catChip, selectedCategory === item.id && styles.catChipActive]}
-            onPress={() => filterByCategory(item.id)}
+            onPress={() => onCategoryChange(item.id)}
           >
             <Text style={[styles.catIcon, selectedCategory === item.id && styles.catIconActive]}>{item.icon}</Text>
             <Text style={[styles.catLabel, selectedCategory === item.id && styles.catLabelActive]}>{item.label}</Text>
@@ -198,12 +151,88 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.sectionLabelRow}>
           <View style={styles.sectionAccent} /><Text style={styles.sectionTitle}>{selectedCategory === 'All' ? 'SEMUA BUKU' : 'HASIL FILTER'}</Text>
         </View>
-        <View style={styles.countBadge}><Text style={styles.countText}>{books.length}</Text></View>
+        <View style={styles.countBadge}><Text style={styles.countText}>{booksCount}</Text></View>
       </View>
     </Animated.View>
   );
+});
 
-  const renderBookCard = ({ item, index }) => {
+export default function HomeScreen({ navigation }) {
+  const {
+    books,
+    trendingBooks,
+    categories,
+    loading,
+    refreshing,
+    fetchBooks,
+    fetchTrending,
+    fetchCategories,
+    fetchDiscovery,
+    onRefresh
+  } = useBooks();
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+
+  const sliderRef = useRef(null);
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const searchTimeout = useRef(null);
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        await fetchDiscovery();
+      } catch (err) {
+        console.error('Initial fetch failed:', err);
+      }
+    };
+    init();
+
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  useEffect(() => {
+    if (trendingBooks.length === 0) return;
+    const interval = setInterval(() => {
+      const nextIndex = (currentSlide + 1) % trendingBooks.length;
+      try {
+        sliderRef.current?.scrollToIndex({ index: nextIndex, animated: true });
+      } catch (error) { }
+      setCurrentSlide(nextIndex);
+    }, 4500);
+    return () => clearInterval(interval);
+  }, [currentSlide, trendingBooks]);
+
+  // Debounced search logic
+  const handleSearch = useCallback((text) => {
+    setSearchQuery(text);
+
+    if (searchTimeout.current) {
+      clearTimeout(searchTimeout.current);
+    }
+
+    searchTimeout.current = setTimeout(() => {
+      fetchBooks({
+        q: text,
+        category_id: selectedCategory === 'All' ? undefined : selectedCategory
+      });
+    }, 500); // 500ms delay
+  }, [selectedCategory, fetchBooks]);
+
+  const filterByCategory = useCallback((catId) => {
+    setSelectedCategory(catId);
+    fetchBooks({
+      category_id: catId === 'All' ? undefined : catId,
+      q: searchQuery
+    });
+  }, [searchQuery, fetchBooks]);
+
+  const renderBookCard = useCallback(({ item, index }) => {
     const colors = ['#e94560', '#f5a623', '#52b788', '#6c63ff', '#00b4d8'];
     const accent = colors[index % colors.length];
     return (
@@ -212,7 +241,7 @@ export default function HomeScreen({ navigation }) {
           <View style={[styles.coverSpine, { backgroundColor: accent }]} /><Text style={styles.coverEmoji}>📖</Text><View style={styles.coverShine} />
         </View>
         <View style={styles.bookMeta}>
-          <View style={[styles.categoryPill, { backgroundColor: accent + '18' }]}><Text style={[styles.categoryPillText, { color: accent }]}>{item.category || 'Umum'}</Text></View>
+          <View style={[styles.categoryPill, { backgroundColor: accent + '18' }]}><Text style={[styles.categoryPillText, { color: accent }]}>{item.categories?.[0]?.name || 'Umum'}</Text></View>
           <Text style={styles.bookTitle} numberOfLines={2}>{item.title}</Text>
           <Text style={styles.bookPublisher} numberOfLines={1}>{item.publisher}</Text>
           <View style={styles.bookFooter}>
@@ -223,7 +252,24 @@ export default function HomeScreen({ navigation }) {
         <View style={[styles.arrowBtn, { backgroundColor: accent }]}><Text style={styles.arrowIcon}>›</Text></View>
       </TouchableOpacity>
     );
-  };
+  }, [navigation]);
+
+  const stableHeader = useMemo(() => (
+    <SearchHeader
+      fadeAnim={fadeAnim}
+      searchQuery={searchQuery}
+      onSearchChange={handleSearch}
+      selectedCategory={selectedCategory}
+      onCategoryChange={filterByCategory}
+      categories={categories}
+      trendingBooks={trendingBooks}
+      navigation={navigation}
+      currentSlide={currentSlide}
+      sliderRef={sliderRef}
+      setCurrentSlide={setCurrentSlide}
+      booksCount={books.length}
+    />
+  ), [fadeAnim, searchQuery, handleSearch, selectedCategory, filterByCategory, categories, trendingBooks, navigation, currentSlide, books.length]);
 
   if (loading && books.length === 0) {
     return (
@@ -241,7 +287,7 @@ export default function HomeScreen({ navigation }) {
         data={books}
         keyExtractor={(item) => item.books_id.toString()}
         renderItem={renderBookCard}
-        ListHeaderComponent={renderHeader}
+        ListHeaderComponent={stableHeader}
         ListEmptyComponent={() => (
           <View style={styles.empty}><Text style={styles.emptyEmoji}>🔍</Text><Text style={styles.emptyTitle}>Buku tidak ditemukan</Text><Text style={styles.emptySub}>Coba gunakan kata kunci yang berbeda</Text></View>
         )}
@@ -264,6 +310,8 @@ const styles = StyleSheet.create({
   searchBar: { backgroundColor: '#ffffff', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 14, borderRadius: 12, elevation: 5 },
   searchIcon: { fontSize: 22, color: '#6b7280', marginRight: 10 },
   searchInput: { flex: 1, fontSize: 15, color: '#111827' },
+  clearBtn: { padding: 4 },
+  clearIcon: { fontSize: 14, color: '#9ca3af' },
   statsBar: { flexDirection: 'row', backgroundColor: '#ffffff', marginHorizontal: 20, marginTop: 20, borderRadius: 12, paddingVertical: 16, elevation: 3 },
   statItem: { flex: 1, alignItems: 'center' },
   statNumber: { fontSize: 20, fontWeight: '800', color: '#1a1a2e', fontFamily: 'Georgia' },

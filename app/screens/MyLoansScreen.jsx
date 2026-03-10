@@ -25,6 +25,7 @@ const statusColors = {
     returned: '#94a3b8',
     rejected: '#dc2626',
     overdue: '#ef4444',
+    returning: '#6366f1',
 };
 
 const statusLabels = {
@@ -34,11 +35,12 @@ const statusLabels = {
     returned: 'Dikembalikan',
     rejected: 'Ditolak',
     overdue: 'Terlambat',
+    returning: 'Menunggu Pengembalian',
 };
 
 export default function MyLoansScreen() {
     const navigation = useNavigation();
-    const { loans, loading, refreshing, fetchLoans, cancelLoan, onRefresh } = useLoans();
+    const { loans, loading, refreshing, fetchLoans, cancelLoan, requestReturn, onRefresh } = useLoans();
 
     useEffect(() => {
         fetchLoans();
@@ -51,6 +53,17 @@ export default function MyLoansScreen() {
             [
                 { text: 'Tidak', style: 'cancel' },
                 { text: 'Ya, Batalkan', onPress: () => cancelLoan(loanId) }
+            ]
+        );
+    };
+
+    const handleReturnRequest = (loanId) => {
+        Alert.alert(
+            'Kembalikan Buku',
+            'Apakah Anda yakin ingin mengembalikan buku ini sekarang?',
+            [
+                { text: 'Batal', style: 'cancel' },
+                { text: 'Ya, Kembalikan', onPress: () => requestReturn(loanId) }
             ]
         );
     };
@@ -80,6 +93,15 @@ export default function MyLoansScreen() {
                     <TouchableOpacity style={styles.cancelActionBtn} onPress={() => handleCancel(item.loans_id)}>
                         <Ionicons name="close-circle-outline" size={16} color={RED} />
                         <Text style={styles.cancelActionText}>Batalkan Pesanan</Text>
+                    </TouchableOpacity>
+                )}
+                {(status === 'active' || status === 'overdue') && (
+                    <TouchableOpacity
+                        style={[styles.cancelActionBtn, { backgroundColor: '#f5f3ff', borderTopColor: '#e0e7ff' }]}
+                        onPress={() => handleReturnRequest(item.loans_id)}
+                    >
+                        <Ionicons name="arrow-undo-outline" size={16} color="#6366f1" />
+                        <Text style={[styles.cancelActionText, { color: '#6366f1' }]}>Kembalikan Buku</Text>
                     </TouchableOpacity>
                 )}
             </View>

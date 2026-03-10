@@ -1,11 +1,13 @@
 // hooks/useProfile.js
 import { useState, useContext } from 'react';
 import { AuthContext } from '../app/context/AuthContext';
+import { useToast } from '../app/context/ToastContext';
 import api from '../app/services/api';
 import authService from '../app/services/authService';
 import { Alert } from 'react-native';
 
 export const useProfile = () => {
+    const { showToast } = useToast();
     const { user, updateUser } = useContext(AuthContext);
     const [stats, setStats] = useState({ loans: 0, favorites: 0, reviews: 0 });
     const [activeLoan, setActiveLoan] = useState(null);
@@ -16,26 +18,33 @@ export const useProfile = () => {
     const fetchProfileData = async () => {
         setLoading(true);
         try {
-            const [loansRes, favRes, notifRes] = await Promise.all([
+            // Parallel fetching — including /auth/me to refresh verification status
+            const [userRes, loansRes, favRes, notifRes] = await Promise.all([
+                api.get('/auth/me'),
                 api.get('/loans'),
                 api.get('/bookmarks'),
-                api.get('/notifications')
+                api.get('/notifications'),
             ]);
 
-            const loansData = loansRes.data.data || [];
-            const favsData = favRes.data.data || [];
-            const notifsData = notifRes.data || [];
+            const userData = userRes.data?.data;
+            if (userData) {
+                updateUser(userData);
+            }
+
+            const loansData = loansRes.data?.data?.data || loansRes.data?.data || [];
+            const favsData = favRes.data?.data?.data || favRes.data?.data || [];
+            const notifsData = notifRes.data?.data?.data || notifRes.data?.data || [];
 
             setStats({
-                loans: loansData.length,
-                favorites: favsData.length,
+                loans: Array.isArray(loansData) ? loansData.length : 0,
+                favorites: Array.isArray(favsData) ? favsData.length : 0,
                 reviews: 0
             });
 
-            const active = loansData.find(l => l.status === 'borrowed' || l.status === 'approved' || l.status === 'active');
+            const active = Array.isArray(loansData) ? loansData.find(l => l.status === 'borrowed' || l.status === 'approved' || l.status === 'active') : null;
             setActiveLoan(active);
 
-            const unread = notifsData.filter(n => !n.is_read).length;
+            const unread = Array.isArray(notifsData) ? notifsData.filter(n => !n.is_read).length : 0;
             setUnreadCount(unread);
         } catch (error) {
             console.error('Error fetching profile data:', error);
@@ -59,13 +68,13 @@ export const useProfile = () => {
             const newAvatarUrl = res.data.avatar_url || res.data.user?.avatar_url;
             if (newAvatarUrl) {
                 await updateUser({ avatar_url: newAvatarUrl });
-                Alert.alert('Sukses', 'Foto profil berhasil diperbarui.');
+                showToast('Foto profil berhasil diperbarui.', 'success');
                 return true;
             }
             return false;
         } catch (error) {
             console.error('Error uploading avatar:', error);
-            Alert.alert('Error', 'Gagal mengunggah foto profil.');
+            showToast('Gagal mengunggah foto profil.', 'error');
             return false;
         } finally {
             setUploading(false);
@@ -80,7 +89,7 @@ export const useProfile = () => {
             return true;
         } catch (error) {
             console.error('Error updating profile:', error);
-            Alert.alert('Error', 'Gagal memperbarui profil.');
+            showToast('Gagal memperbarui profil.', 'error');
             return false;
         } finally {
             setLoading(false);

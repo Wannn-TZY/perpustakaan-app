@@ -8,13 +8,17 @@ import {
   Animated,
   ActivityIndicator,
   Alert,
+  Modal,
+  TextInput,
 } from 'react-native';
-import { useContext, useRef, useEffect } from 'react';
+import { useContext, useRef, useEffect, useState } from 'react';
+import { useToast } from '../context/ToastContext';
 import { AuthContext } from '../context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { useProfile } from '../../hooks/useProfile';
+import { useAuth } from '../../hooks/useAuth';
 
 const NAVY = '#1a1a2e';
 const RED = '#e94560';
@@ -40,6 +44,7 @@ const menuGroups = [
 ];
 
 export default function ProfileScreen() {
+  const { showToast } = useToast();
   const { logout } = useContext(AuthContext);
   const navigation = useNavigation();
   const isFocused = useIsFocused();
@@ -55,6 +60,11 @@ export default function ProfileScreen() {
     uploadAvatar,
   } = useProfile();
 
+  const { verifyOTP, resendVerification, loading: authLoading } = useAuth();
+
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+
   useEffect(() => {
     if (isFocused) {
       fetchProfileData();
@@ -69,7 +79,7 @@ export default function ProfileScreen() {
   const handlePickAvatar = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Izin Ditolak', 'Maaf, kami butuh izin galeri untuk mengganti foto profil.');
+      showToast('Maaf, kami butuh izin galeri untuk mengganti foto profil.', 'error');
       return;
     }
 
@@ -82,6 +92,19 @@ export default function ProfileScreen() {
 
     if (!result.canceled) {
       uploadAvatar(result.assets[0].uri);
+    }
+  };
+
+  const handleVerify = async () => {
+    if (otpCode.length !== 6) {
+      showToast('Kode verifikasi harus 6 digit ya.', 'warning');
+      return;
+    }
+    const success = await verifyOTP(otpCode);
+    if (success) {
+      setShowVerifyModal(false);
+      setOtpCode('');
+      fetchProfileData();
     }
   };
 
@@ -120,9 +143,19 @@ export default function ProfileScreen() {
         <Text style={styles.userName}>{user?.name || 'Nama Pengguna'}</Text>
         <Text style={styles.userEmail}>{user?.email || 'email@example.com'}</Text>
 
-        <View style={styles.memberBadge}>
-          <Text style={styles.memberText}>✦ Anggota Aktif</Text>
-        </View>
+        {user?.email_verified_at ? (
+          <View style={styles.memberBadge}>
+            <Text style={styles.memberText}>✦ Anggota Terverifikasi</Text>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={[styles.memberBadge, { borderColor: '#f5a623', backgroundColor: '#f5a62315' }]}
+            onPress={() => setShowVerifyModal(true)}
+          >
+            <Text style={[styles.memberText, { color: '#f5a623' }]}>⚠ Belum Diverifikasi</Text>
+            <Text style={styles.verifyLink}>Klik untuk Verifikasi</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <Animated.View style={{ opacity: fadeAnim }}>
@@ -175,10 +208,14 @@ export default function ProfileScreen() {
                 <Text style={styles.readingTitle} numberOfLines={1}>{activeLoan.book?.title}</Text>
                 <Text style={styles.readingAuthor}>{activeLoan.status.toUpperCase()}</Text>
                 <View style={styles.progressBarBg}>
-                  <View style={[styles.progressBarFill, { width: activeLoan.status === 'borrowed' || activeLoan.status === 'active' ? '100%' : '50%' }]} />
+                  <View style={[styles.progressBarFill, {
+                    width: activeLoan.status === 'borrowed' || activeLoan.status === 'active' || activeLoan.status === 'overdue' ? '100%' :
+                      activeLoan.status === 'returning' ? '75%' : '50%'
+                  }]} />
                 </View>
                 <Text style={styles.progressText}>
-                  {activeLoan.status === 'borrowed' || activeLoan.status === 'active' ? 'Sedang Dipinjam' : 'Menunggu Persetujuan'}
+                  {activeLoan.status === 'borrowed' || activeLoan.status === 'active' || activeLoan.status === 'overdue' ? 'Sedang Dipinjam' :
+                    activeLoan.status === 'returning' ? 'Menunggu Konfirmasi Pengembalian' : 'Menunggu Persetujuan'}
                 </Text>
               </View>
               <TouchableOpacity
@@ -244,6 +281,64 @@ export default function ProfileScreen() {
           <Text style={styles.footerVersion}>Versi 1.0.0</Text>
         </View>
       </Animated.View>
+
+      {/* ── Verification Modal ───────────────────────────────────── */}
+      <Modal
+        visible={showVerifyModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowVerifyModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <View style={[styles.modalIconWrap, { backgroundColor: '#f5a62315' }]}>
+                <Ionicons name="mail-open-outline" size={24} color="#f5a623" />
+              </View>
+              <Text style={styles.modalTitle}>Verifikasi Email</Text>
+              <Text style={styles.modalSub}>Masukkan 6 digit kode yang dikirim ke email kamu</Text>
+              <TouchableOpacity
+                style={styles.closeModal}
+                onPress={() => { setShowVerifyModal(false); setOtpCode(''); }}
+              >
+                <Ionicons name="close" size={20} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+
+            <TextInput
+              style={styles.otpInput}
+              placeholder="000000"
+              placeholderTextColor="#cbd5e1"
+              keyboardType="number-pad"
+              maxLength={6}
+              value={otpCode}
+              onChangeText={setOtpCode}
+              letterSpacing={10}
+              textAlign="center"
+            />
+
+            <TouchableOpacity
+              style={[styles.verifySubmit, authLoading && { opacity: 0.7 }]}
+              onPress={handleVerify}
+              disabled={authLoading}
+            >
+              {authLoading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.verifySubmitText}>Verifikasi Sekarang</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.resendBtn}
+              onPress={resendVerification}
+              disabled={authLoading}
+            >
+              <Text style={styles.resendText}>Belum terima kode? Kirim ulang</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -298,4 +393,17 @@ const styles = StyleSheet.create({
   footerVersion: { fontSize: 11, color: '#d1d5db', letterSpacing: 0.5 },
   unreadBadge: { backgroundColor: RED, borderRadius: 10, minWidth: 20, height: 20, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 6, marginRight: 8 },
   unreadText: { color: '#fff', fontSize: 10, fontWeight: '800' },
+  verifyLink: { fontSize: 9, color: '#f5a623', fontWeight: '500', marginTop: 2, textAlign: 'center', textTransform: 'uppercase' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(26, 26, 46, 0.75)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalContainer: { backgroundColor: '#fff', borderRadius: 24, padding: 24, width: '100%', alignItems: 'center', position: 'relative' },
+  closeModal: { position: 'absolute', top: 16, right: 16, padding: 4 },
+  modalHeader: { alignItems: 'center', marginBottom: 24 },
+  modalIconWrap: { width: 56, height: 56, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  modalTitle: { fontSize: 20, fontWeight: '800', color: NAVY, fontFamily: 'Georgia', marginBottom: 8 },
+  modalSub: { fontSize: 13, color: '#94a3b8', textAlign: 'center', paddingHorizontal: 20, lineHeight: 18 },
+  otpInput: { width: '100%', backgroundColor: '#f8fafc', borderRadius: 12, paddingVertical: 16, fontSize: 24, fontWeight: '700', color: NAVY, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 20 },
+  verifySubmit: { backgroundColor: NAVY, width: '100%', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
+  verifySubmitText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  resendBtn: { marginTop: 16, padding: 8 },
+  resendText: { fontSize: 13, color: '#6c63ff', fontWeight: '600' },
 });

@@ -12,6 +12,7 @@ import {
   Alert
 } from 'react-native';
 import { useState, useRef, useEffect, useContext } from 'react';
+import { useToast } from '../context/ToastContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { AuthContext } from '../context/AuthContext';
@@ -28,6 +29,7 @@ const devices = [
 ];
 
 export default function PrivacyScreen() {
+  const { showToast } = useToast();
   const { user } = useContext(AuthContext);
   const navigation = useNavigation();
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -46,7 +48,7 @@ export default function PrivacyScreen() {
 
   const handleSavePassword = async () => {
     if (!pwForm.old || !pwForm.new || !pwForm.confirm) {
-      Alert.alert('Error', 'Harap isi semua field');
+      showToast('Harap isi semua field', 'warning');
       return;
     }
     const success = await changePassword({

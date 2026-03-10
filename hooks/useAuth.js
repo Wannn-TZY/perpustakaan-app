@@ -1,11 +1,13 @@
 // hooks/useAuth.js
 import { useState, useContext } from 'react';
 import { AuthContext } from '../app/context/AuthContext';
+import { useToast } from '../app/context/ToastContext';
 import authService from '../app/services/authService';
 import { Alert } from 'react-native';
 
 export const useAuth = () => {
-    const { setUser, logout: contextLogout } = useContext(AuthContext);
+    const { showToast } = useToast();
+    const { setUser, updateUser, logout: contextLogout } = useContext(AuthContext);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [fieldErrors, setFieldErrors] = useState({});
@@ -36,9 +38,13 @@ export const useAuth = () => {
         setLoading(true);
         try {
             const res = await authService.register(data);
-            const { token, user } = res.data;
-            await setUser({ ...user, token });
-            return true;
+            const { token, user, message } = res.data;
+
+            if (token) {
+                await setUser({ ...user, token });
+            }
+
+            return { success: true, message: message || 'Registrasi berhasil.' };
         } catch (err) {
             const errors = err?.response?.data?.errors;
             if (errors) {
@@ -58,10 +64,10 @@ export const useAuth = () => {
         setLoading(true);
         try {
             await authService.changePassword(data);
-            Alert.alert('Sukses', 'Password berhasil diperbarui.');
+            showToast('Password berhasil diperbarui.', 'success');
             return true;
         } catch (err) {
-            Alert.alert('Gagal', err?.response?.data?.message || 'Gagal mengubah password.');
+            showToast(err?.response?.data?.message || 'Gagal mengubah password.', 'error');
             return false;
         } finally {
             setLoading(false);
@@ -71,11 +77,29 @@ export const useAuth = () => {
     const resendVerification = async () => {
         setLoading(true);
         try {
-            await authService.resendVerificationEmail();
-            Alert.alert('Sukses', 'Email verifikasi telah dikirim ulang.');
+            await authService.resendOTP();
+            showToast('Kode verifikasi baru telah dikirim ke email kamu.', 'success');
             return true;
         } catch (err) {
-            Alert.alert('Gagal', err?.response?.data?.message || 'Gagal mengirim email.');
+            showToast(err?.response?.data?.message || 'Gagal mengirim kode.', 'error');
+            return false;
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const verifyOTP = async (code) => {
+        setError('');
+        setLoading(true);
+        try {
+            const res = await authService.verifyOTP(code);
+            const { user } = res.data;
+            // Update context with the new user state (verified)
+            await updateUser(user);
+            showToast('Email kamu berhasil diverifikasi!', 'success');
+            return true;
+        } catch (err) {
+            setError(err?.response?.data?.message || 'Verifikasi gagal. Periksa kembali kode kamu.');
             return false;
         } finally {
             setLoading(false);
@@ -89,7 +113,43 @@ export const useAuth = () => {
             await contextLogout();
             return true;
         } catch (err) {
-            Alert.alert('Gagal', 'Gagal menghapus akun.');
+            showToast('Gagal menghapus akun.', 'error');
+            return false;
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const forgotPassword = async (email) => {
+        setError('');
+        setLoading(true);
+        try {
+            await authService.forgotPassword(email);
+            return true;
+        } catch (err) {
+            setError(err?.response?.data?.message || 'Gagal mengirim token reset.');
+            return false;
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const resetPassword = async (data) => {
+        setError('');
+        setFieldErrors({});
+        setLoading(true);
+        try {
+            await authService.resetPassword(data);
+            return true;
+        } catch (err) {
+            const errors = err?.response?.data?.errors;
+            if (errors) {
+                const mapped = {};
+                Object.keys(errors).forEach((k) => { mapped[k] = errors[k][0]; });
+                setFieldErrors(mapped);
+            } else {
+                setError(err?.response?.data?.message || 'Gagal mereset password.');
+            }
             return false;
         } finally {
             setLoading(false);
@@ -102,6 +162,9 @@ export const useAuth = () => {
         changePassword,
         resendVerification,
         deleteAccount,
+        forgotPassword,
+        resetPassword,
+        verifyOTP,
         loading,
         error,
         setError,

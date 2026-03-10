@@ -5,7 +5,7 @@ import { BASE_URL } from '../constants/Config';
 
 const api = axios.create({
   baseURL: BASE_URL,
-  timeout: 15000,
+  timeout: 60000,
   headers: {
     'Content-Type': 'application/json',
     Accept: 'application/json',
@@ -13,10 +13,16 @@ const api = axios.create({
 });
 
 let authToken = null;
+let logoutHandler = null;
 
 // ── Set / Remove Bearer Token ──────────────────────────────
 export const setAuthToken = (token) => {
   authToken = token;
+};
+
+// ── Set Global Logout Handler ──────────────────────────────
+export const setLogoutHandler = (handler) => {
+  logoutHandler = handler;
 };
 
 // ── Request Interceptor (Auth) ─────────────────────────────
@@ -30,26 +36,60 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// ── Response Interceptor (Error Handling & Logging) ────────
+// ── Auto-Retry Logic ───────────────────────────────────────
+// Retries failed requests up to 3 times with exponential backoff.
+// This handles transient failures from the single-threaded PHP server.
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 1000; // 1s, 2s, 4s
+
 api.interceptors.response.use(
   (response) => {
     if (__DEV__) {
-      console.log(`[API Success] ${response.config.method.toUpperCase()} ${response.config.url}`);
+      const fullUrl = `${response.config.baseURL || ''}${response.config.url}`;
+      console.log(`[API Success] ${response.config.method.toUpperCase()} ${fullUrl}`);
     }
     return response;
   },
-  (error) => {
+  async (error) => {
+    const config = error.config;
+
+    // Only retry on Network Error or 5xx server errors (not 4xx client errors)
+    const isNetworkError = !error.response && error.code !== 'ECONNABORTED';
+    const isServerError = error.response && error.response.status >= 500;
+    const shouldRetry = isNetworkError || isServerError;
+
+    if (shouldRetry && config && !config.__retryCount) {
+      config.__retryCount = 0;
+    }
+
+    if (shouldRetry && config && config.__retryCount < MAX_RETRIES) {
+      config.__retryCount += 1;
+      const delay = RETRY_DELAY_MS * Math.pow(2, config.__retryCount - 1);
+
+      if (__DEV__) {
+        const fullUrl = `${config.baseURL || ''}${config.url}`;
+        console.warn(`[API Retry ${config.__retryCount}/${MAX_RETRIES}] ${config.method?.toUpperCase()} ${fullUrl} — waiting ${delay}ms`);
+      }
+
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return api(config);
+    }
+
+    // Final failure: log and reject
     const status = error?.response?.status;
-    const url = error?.config?.url;
+    const fullUrl = `${error?.config?.baseURL || ''}${error?.config?.url}`;
 
     if (__DEV__) {
-      console.error(`[API Error] ${status || 'Network'} ${error?.config?.method.toUpperCase()} ${url}`, error?.response?.data);
+      console.error(`[API Error] ${status || 'Network'} ${error?.config?.method?.toUpperCase()} ${fullUrl}`, error?.response?.data);
     }
 
     if (status === 401) {
       setAuthToken(null);
-      // Optional: Trigger global logout via a custom event or callback if needed
+      if (logoutHandler) {
+        logoutHandler();
+      }
     }
+
     return Promise.reject(error);
   }
 );

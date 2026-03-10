@@ -1,38 +1,29 @@
 // hooks/useBookDetail.js
 import { useState, useCallback } from 'react';
+import api from '../app/services/api';
+import { useToast } from '../app/context/ToastContext';
 import bookService from '../app/services/bookService';
-import { Alert, Linking } from 'react-native';
+import { Alert } from 'react-native';
 
 export const useBookDetail = (id) => {
+    const { showToast } = useToast();
     const [book, setBook] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [isFavorite, setIsFavorite] = useState(false);
-    const [bookmarkId, setBookmarkId] = useState(null);
     const [annotations, setAnnotations] = useState([]);
     const [loadingRead, setLoadingRead] = useState(false);
+    const [currentLoan, setCurrentLoan] = useState(null);
 
     const fetchDetail = useCallback(async () => {
         setLoading(true);
         try {
-            const [detailRes, favRes, annoRes] = await Promise.all([
-                bookService.getBookDetail(id),
-                bookService.getBookmarks(),
-                bookService.getAnnotations(id)
-            ]);
+            const res = await api.get(`/books/${id}`);
+            const data = res.data;
 
-            setBook(detailRes.data);
-            setAnnotations(annoRes.data || []);
-
-            if (favRes.data && favRes.data.data) {
-                const found = favRes.data.data.find(b => b.books_id === parseInt(id));
-                if (found) {
-                    setIsFavorite(true);
-                    setBookmarkId(found.bookmarks_id);
-                } else {
-                    setIsFavorite(false);
-                    setBookmarkId(null);
-                }
-            }
+            setBook(data.data || null);
+            setCurrentLoan(data.current_loan || null);
+            setIsFavorite(data.is_favorite || false);
+            setAnnotations(data.annotations || []);
         } catch (error) {
             console.error('Error fetching book detail:', error);
         } finally {
@@ -42,33 +33,29 @@ export const useBookDetail = (id) => {
 
     const toggleFavorite = async () => {
         try {
-            const res = await bookService.toggleBookmark(id, isFavorite, bookmarkId);
-            if (isFavorite) {
-                setIsFavorite(false);
-                setBookmarkId(null);
-            } else {
-                setIsFavorite(true);
-                setBookmarkId(res.data.data?.bookmarks_id || res.data.bookmarks_id);
-            }
-            return true;
+            const currentFav = isFavorite;
+            setIsFavorite(!currentFav); // Optimistic update
+            await bookService.toggleBookmark(id, currentFav);
+            await fetchDetail(); // Re-sync
         } catch (error) {
-            Alert.alert('Error', 'Gagal memperbarui favorit');
-            return false;
+            console.error('Toggle favorite error:', error);
+            setIsFavorite(isFavorite);
+            showToast('Gagal memperbarui favorit', 'error');
         }
     };
 
     const addNote = async (content) => {
         try {
-            const res = await bookService.addAnnotation(id, {
+            await bookService.addAnnotation(id, {
                 content,
                 type: 'note',
-                location_reference: 'General',
+                location_reference: 'page-0',
                 is_private: true
             });
-            setAnnotations(prev => [res.data.data, ...prev]);
+            await fetchDetail();
             return true;
         } catch (error) {
-            Alert.alert('Error', 'Gagal menambahkan catatan');
+            showToast('Gagal menambah catatan', 'error');
             return false;
         }
     };
@@ -76,32 +63,20 @@ export const useBookDetail = (id) => {
     const deleteNote = async (annoId) => {
         try {
             await bookService.deleteAnnotation(annoId);
-            setAnnotations(prev => prev.filter(a => a.annotations_id !== annoId));
+            await fetchDetail();
             return true;
         } catch (error) {
-            Alert.alert('Error', 'Gagal menghapus catatan');
+            showToast('Gagal menghapus catatan', 'error');
             return false;
         }
     };
 
-    const readDigital = async () => {
+    const readDigital = () => {
         if (!book?.files || book.files.length === 0) {
-            Alert.alert('Info', 'Buku ini belum memiliki versi digital.');
+            showToast('Buku ini tidak memiliki salinan digital.', 'info');
             return;
         }
-
-        setLoadingRead(true);
-        try {
-            const file = book.files[0];
-            const res = await bookService.downloadFile(id, file.book_files_id);
-            if (res.data.url) {
-                await Linking.openURL(res.data.url);
-            }
-        } catch (error) {
-            Alert.alert('Error', 'Gagal membuka file buku digital.');
-        } finally {
-            setLoadingRead(false);
-        }
+        showToast(`Membuka file: ${book.files[0].file_name}`, 'info');
     };
 
     return {
@@ -109,11 +84,12 @@ export const useBookDetail = (id) => {
         loading,
         isFavorite,
         annotations,
+        currentLoan,
         loadingRead,
         fetchDetail,
         toggleFavorite,
         addNote,
         deleteNote,
-        readDigital,
+        readDigital
     };
 };
