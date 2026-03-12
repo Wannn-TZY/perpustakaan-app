@@ -95,6 +95,15 @@ const bookService = {
     downloadFile: async (bookId, fileId) => {
         return api.get(`/books/${bookId}/files/${fileId}/download`);
     },
+
+    /**
+     * Get view-only URL (Signed URL)
+     * @param {number|string} bookId 
+     * @param {number|string} fileId 
+     */
+    getViewUrl: async (bookId, fileId) => {
+        return api.get(`/books/${bookId}/files/${fileId}/view`);
+    },
 };
 
 export default bookService;

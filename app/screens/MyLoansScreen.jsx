@@ -84,7 +84,7 @@ export default function MyLoansScreen() {
                             <Text style={[styles.statusText, { color }]}>{statusLabels[status] || status}</Text>
                         </View>
                         <Text style={styles.bookTitle} numberOfLines={1}>{book.title}</Text>
-                        <Text style={styles.loanDate}>Diajukan: {new Date(item.loan_date).toLocaleDateString('id-ID')}</Text>
+                        <Text style={styles.loanDate}>Diajukan: {new Date(item.created_at).toLocaleDateString('id-ID')}</Text>
                         {item.return_date && <Text style={styles.returnDate}>Kembali: {new Date(item.return_date).toLocaleDateString('id-ID')}</Text>}
                     </View>
                     <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />

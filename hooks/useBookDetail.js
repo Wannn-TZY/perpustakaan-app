@@ -71,12 +71,32 @@ export const useBookDetail = (id) => {
         }
     };
 
-    const readDigital = () => {
+    const readDigital = async (navigation) => {
         if (!book?.files || book.files.length === 0) {
             showToast('Buku ini tidak memiliki salinan digital.', 'info');
             return;
         }
-        showToast(`Membuka file: ${book.files[0].file_name}`, 'info');
+
+        setLoadingRead(true);
+        try {
+            const file = book.files[0];
+            const res = await bookService.getViewUrl(id, file.book_files_id);
+
+            if (res.data.success) {
+                navigation.navigate('ReaderDetail', {
+                    url: res.data.url,
+                    title: book.title,
+                    fileType: file.file_type
+                });
+            } else {
+                showToast(res.data.message || 'Gagal menyiapkan reader', 'error');
+            }
+        } catch (error) {
+            console.error('Read digital error:', error);
+            showToast('Gagal memuat file buku', 'error');
+        } finally {
+            setLoadingRead(false);
+        }
     };
 
     return {

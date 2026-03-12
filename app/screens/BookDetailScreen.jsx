@@ -2,9 +2,12 @@ import { useState, useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { useBookDetail } from '../../hooks/useBookDetail';
 import { useLoans } from '../../hooks/useLoans';
-import { View, Text, ScrollView, StatusBar, ActivityIndicator, TouchableOpacity, StyleSheet, TextInput, Alert } from 'react-native';
+import { View, Text, ScrollView, StatusBar, ActivityIndicator, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import ConfirmModal from '../../components/ConfirmModal';
 
 export default function BookDetailScreen({ route }) {
+  const navigation = useNavigation();
   const { id } = route.params;
   const {
     book,
@@ -20,8 +23,9 @@ export default function BookDetailScreen({ route }) {
     readDigital
   } = useBookDetail(id);
 
-  const { borrowing, requestBorrow, requestReturn } = useLoans();
+  const { borrowing, requestBorrow, requestReturn, loading: returnLoading } = useLoans();
   const [newNote, setNewNote] = useState('');
+  const [showReturnModal, setShowReturnModal] = useState(false);
 
   useEffect(() => {
     fetchDetail();
@@ -95,28 +99,51 @@ export default function BookDetailScreen({ route }) {
               activeOpacity={currentLoan.status === 'active' && book.files?.length > 0 ? 0.7 : 1}
               onPress={() => {
                 if (currentLoan.status === 'active' && book.files?.length > 0) {
-                  readDigital();
+                  readDigital(navigation);
                 }
               }}
               style={[
                 styles.statusBanner,
-                currentLoan.status === 'pending' ? styles.pendingBanner : styles.activeBanner,
+                currentLoan.status === 'pending' && styles.pendingBanner,
+                currentLoan.status === 'active' && styles.activeBanner,
+                currentLoan.status === 'returning' && styles.returningBanner,
                 (currentLoan.status === 'active' && book.files?.length > 0) && styles.activeReadBanner
               ]}
             >
               <Ionicons
-                name={currentLoan.status === 'pending' ? "time-outline" : "book-outline"}
+                name={
+                  currentLoan.status === 'pending' ? 'time-outline'
+                    : currentLoan.status === 'returning' ? 'swap-horizontal-outline'
+                      : 'book-outline'
+                }
                 size={22}
-                color={currentLoan.status === 'pending' ? "#b45309" : "#ffffff"}
+                color={
+                  currentLoan.status === 'pending' ? '#b45309'
+                    : currentLoan.status === 'returning' ? '#7c3aed'
+                      : '#ffffff'
+                }
               />
               <View style={styles.statusTextContainer}>
-                <Text style={[styles.statusTitle, currentLoan.status === 'pending' ? { color: '#b45309' } : { color: '#ffffff' }]}>
-                  {currentLoan.status === 'pending' ? 'Menunggu Persetujuan' : 'Buku Siap Dibaca'}
+                <Text style={[
+                  styles.statusTitle,
+                  currentLoan.status === 'pending' && { color: '#b45309' },
+                  currentLoan.status === 'returning' && { color: '#7c3aed' },
+                  currentLoan.status === 'active' && { color: '#ffffff' },
+                ]}>
+                  {currentLoan.status === 'pending' ? 'Menunggu Persetujuan'
+                    : currentLoan.status === 'returning' ? 'Menunggu Konfirmasi Pengembalian'
+                      : 'Buku Siap Dibaca'}
                 </Text>
-                <Text style={[styles.statusSub, currentLoan.status === 'active' && { color: 'rgba(255,255,255,0.8)' }]}>
+                <Text style={[
+                  styles.statusSub,
+                  currentLoan.status === 'active' && { color: 'rgba(255,255,255,0.8)' },
+                  currentLoan.status === 'returning' && { color: '#8b5cf6' },
+                ]}>
                   {currentLoan.status === 'pending'
                     ? 'Permintaan pinjaman kamu sedang diproses staff.'
-                    : `Klik di sini untuk mulai membaca buku.`}
+                    : currentLoan.status === 'returning'
+                      ? 'Pengembalian sedang menunggu konfirmasi dari petugas.'
+                      : 'Klik di sini untuk mulai membaca buku.'}
                 </Text>
               </View>
               {currentLoan.status === 'active' && book.files?.length > 0 && (
@@ -139,7 +166,7 @@ export default function BookDetailScreen({ route }) {
           )}
 
           {!currentLoan && book.files && book.files.length > 0 && (
-            <TouchableOpacity style={styles.readBtn} onPress={readDigital} disabled={loadingRead}>
+            <TouchableOpacity style={styles.readBtn} onPress={() => readDigital(navigation)} disabled={loadingRead}>
               <Text style={styles.readText}>{loadingRead ? '...' : '📱 Baca'}</Text>
             </TouchableOpacity>
           )}
@@ -152,26 +179,30 @@ export default function BookDetailScreen({ route }) {
         {currentLoan && (currentLoan.status === 'active' || currentLoan.status === 'overdue') && (
           <TouchableOpacity
             style={styles.returnRequestBtn}
-            onPress={() => {
-              Alert.alert(
-                'Kembalikan Buku',
-                'Apakah Anda yakin ingin mengembalikan buku ini sekarang?',
-                [
-                  { text: 'Batal', style: 'cancel' },
-                  {
-                    text: 'Ya, Kembalikan', onPress: async () => {
-                      const success = await requestReturn(currentLoan.loans_id);
-                      if (success) fetchDetail();
-                    }
-                  }
-                ]
-              );
-            }}
+            onPress={() => setShowReturnModal(true)}
           >
             <Ionicons name="arrow-undo-outline" size={18} color="#6366f1" />
             <Text style={styles.returnRequestText}>Ajukan Pengembalian</Text>
           </TouchableOpacity>
         )}
+
+        <ConfirmModal
+          visible={showReturnModal}
+          icon="arrow-undo-outline"
+          iconColor="#6366f1"
+          title="Kembalikan Buku?"
+          message={`Apakah kamu yakin ingin mengajukan pengembalian buku "${book.title}"? Staff akan mengkonfirmasi pengembalianmu.`}
+          confirmText="Ya, Kembalikan"
+          cancelText="Batal"
+          confirmColor="#6366f1"
+          loading={returnLoading}
+          onCancel={() => setShowReturnModal(false)}
+          onConfirm={async () => {
+            const success = await requestReturn(currentLoan?.loans_id);
+            setShowReturnModal(false);
+            if (success) fetchDetail();
+          }}
+        />
       </View>
     </ScrollView>
   );
@@ -215,6 +246,7 @@ const styles = StyleSheet.create({
   statusBanner: { flex: 1, flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 16, gap: 12, borderWidth: 1 },
   pendingBanner: { backgroundColor: '#fffbeb', borderColor: '#fde68a' },
   activeBanner: { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' },
+  returningBanner: { backgroundColor: '#f5f3ff', borderColor: '#ddd6fe' },
   activeReadBanner: { backgroundColor: '#6366f1', borderColor: '#4f46e5' },
   statusTextContainer: { flex: 1 },
   statusTitle: { fontSize: 14, fontWeight: 'bold' },

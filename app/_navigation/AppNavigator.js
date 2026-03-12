@@ -20,6 +20,7 @@ import PrivacyScreen from '../screens/PrivacyScreen';
 import HelpScreen from '../screens/HelpScreen';
 import AboutScreen from '../screens/AboutScreen';
 import MyLoansScreen from '../screens/MyLoansScreen';
+import ReaderDetailScreen from '../screens/ReaderDetailScreen';
 
 
 const Stack = createNativeStackNavigator();
@@ -122,6 +123,15 @@ export default function AppNavigator() {
               title: 'Pinjaman Saya',
               headerShown: false,
               animation: 'slide_from_right',
+            }}
+          />
+          <Stack.Screen
+            name="ReaderDetail"
+            component={ReaderDetailScreen}
+            options={{
+              title: 'Membaca Buku',
+              headerShown: true,
+              animation: 'slide_from_bottom',
             }}
           />
         </>
