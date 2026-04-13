@@ -18,7 +18,7 @@ const { width } = Dimensions.get('window');
 const CARD_WIDTH = width - 48;
 
 // Reusable/Stable Search Component to prevent focus loss
-const SearchHeader = React.memo(({
+const SearchHeader = React.memo(function SearchHeader({
   fadeAnim,
   searchQuery,
   onSearchChange,
@@ -31,7 +31,7 @@ const SearchHeader = React.memo(({
   sliderRef,
   setCurrentSlide,
   booksCount
-}) => {
+}) {
   const renderTrending = () => (
     <View style={styles.sliderSection}>
       <View style={styles.sliderLabelRow}>
@@ -45,7 +45,7 @@ const SearchHeader = React.memo(({
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        keyExtractor={(item) => item.books_id?.toString() || item.id?.toString()}
+        keyExtractor={(item, index) => (item?.books_id ?? item?.id ?? index)?.toString()}
         onMomentumScrollEnd={(e) => {
           setCurrentSlide(Math.round(e.nativeEvent.contentOffset.x / CARD_WIDTH));
         }}
@@ -54,7 +54,7 @@ const SearchHeader = React.memo(({
           return (
             <TouchableOpacity
               style={[styles.sliderCard, { backgroundColor: '#1a1a2e' }]}
-              onPress={() => navigation.navigate('BookDetail', { id: item.books_id })}
+              onPress={() => navigation.navigate('BookDetail', { id: item.books_id || item.id })}
             >
               <View style={[styles.sliderAccentBar, { backgroundColor: accent }]} />
               <View style={styles.sliderTopRow}>
@@ -165,8 +165,6 @@ export default function HomeScreen({ navigation }) {
     loading,
     refreshing,
     fetchBooks,
-    fetchTrending,
-    fetchCategories,
     fetchDiscovery,
     onRefresh
   } = useBooks();
@@ -194,7 +192,7 @@ export default function HomeScreen({ navigation }) {
       duration: 600,
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [fetchDiscovery, fadeAnim]);
 
   useEffect(() => {
     if (trendingBooks.length === 0) return;
@@ -202,7 +200,7 @@ export default function HomeScreen({ navigation }) {
       const nextIndex = (currentSlide + 1) % trendingBooks.length;
       try {
         sliderRef.current?.scrollToIndex({ index: nextIndex, animated: true });
-      } catch (error) { }
+      } catch (_error) { }
       setCurrentSlide(nextIndex);
     }, 4500);
     return () => clearInterval(interval);
@@ -236,7 +234,7 @@ export default function HomeScreen({ navigation }) {
     const colors = ['#e94560', '#f5a623', '#52b788', '#6c63ff', '#00b4d8'];
     const accent = colors[index % colors.length];
     return (
-      <TouchableOpacity style={styles.bookCard} onPress={() => navigation.navigate('BookDetail', { id: item.books_id })} activeOpacity={0.85}>
+      <TouchableOpacity style={styles.bookCard} onPress={() => navigation.navigate('BookDetail', { id: item.books_id || item.id })} activeOpacity={0.85}>
         <View style={[styles.bookCover, { backgroundColor: accent + '18' }]}>
           <View style={[styles.coverSpine, { backgroundColor: accent }]} /><Text style={styles.coverEmoji}>📖</Text><View style={styles.coverShine} />
         </View>
@@ -285,7 +283,7 @@ export default function HomeScreen({ navigation }) {
       <StatusBar barStyle="dark-content" backgroundColor="#f9f7f4" />
       <FlatList
         data={books}
-        keyExtractor={(item) => item.books_id.toString()}
+        keyExtractor={(item, index) => (item?.books_id ?? item?.id ?? index)?.toString()}
         renderItem={renderBookCard}
         ListHeaderComponent={stableHeader}
         ListEmptyComponent={() => (

@@ -4,7 +4,6 @@ import { AuthContext } from '../app/context/AuthContext';
 import { useToast } from '../app/context/ToastContext';
 import api from '../app/services/api';
 import authService from '../app/services/authService';
-import { Alert } from 'react-native';
 
 export const useProfile = () => {
     const { showToast } = useToast();
@@ -65,9 +64,12 @@ export const useProfile = () => {
 
             const res = await authService.updateAvatar(formData);
 
-            const newAvatarUrl = res.data.avatar_url || res.data.user?.avatar_url;
+            const newAvatarUrl = res.data?.data?.avatar_url || res.data.avatar_url || res.data.user?.avatar_url;
             if (newAvatarUrl) {
-                await updateUser({ avatar_url: newAvatarUrl });
+                await updateUser({
+                    avatar_url: newAvatarUrl,
+                    _avatarUpdatedAt: Date.now(),
+                });
                 showToast('Foto profil berhasil diperbarui.', 'success');
                 return true;
             }

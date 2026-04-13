@@ -1,5 +1,5 @@
-import { View, Text, Switch, StyleSheet, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
-import { useState, useContext } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
+import { useContext } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { AuthContext } from '../context/AuthContext';
@@ -8,43 +8,26 @@ const NAVY = '#1a1a2e';
 const RED = '#e94560';
 const CREAM = '#f9f7f4';
 
+const SettingLink = ({ icon, label, onPress, color = '#6c63ff' }) => (
+  <TouchableOpacity style={styles.item} onPress={onPress} activeOpacity={0.7}>
+    <View style={[styles.iconWrap, { backgroundColor: color + '15' }]}>
+      <Ionicons name={icon} size={20} color={color} />
+    </View>
+    <Text style={styles.label}>{label}</Text>
+    <Ionicons name="chevron-forward" size={18} color="#cbd5e1" />
+  </TouchableOpacity>
+);
+
 export default function SettingsScreen() {
   const navigation = useNavigation();
   const { logout } = useContext(AuthContext);
-  const [notifications, setNotifications] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
-  const [biometric, setBiometric] = useState(true);
-
-  const SettingItem = ({ icon, label, value, onValueChange, type = 'switch', onPress, color = '#6c63ff' }) => (
-    <TouchableOpacity
-      style={styles.item}
-      onPress={onPress}
-      activeOpacity={type === 'link' ? 0.7 : 1}
-      disabled={type === 'switch'}
-    >
-      <View style={[styles.iconWrap, { backgroundColor: color + '15' }]}>
-        <Ionicons name={icon} size={20} color={color} />
-      </View>
-      <Text style={styles.label}>{label}</Text>
-      {type === 'switch' ? (
-        <Switch
-          value={value}
-          onValueChange={onValueChange}
-          trackColor={{ false: '#e2e8f0', true: RED + '40' }}
-          thumbColor={value ? RED : '#f4f3f4'}
-        />
-      ) : (
-        <Ionicons name="chevron-forward" size={18} color="#cbd5e1" />
-      )}
-    </TouchableOpacity>
-  );
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <StatusBar barStyle="dark-content" backgroundColor={NAVY} />
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color={NAVY} />
+          <Ionicons name="arrow-back" size={22} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Pengaturan</Text>
         <View style={{ width: 40 }} />
@@ -52,43 +35,13 @@ export default function SettingsScreen() {
 
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>PREFERENSI</Text>
+          <Text style={styles.sectionLabel}>AKUN</Text>
           <View style={styles.card}>
-            <SettingItem
-              icon="notifications-outline"
-              label="Notifikasi Push"
-              value={notifications}
-              onValueChange={setNotifications}
-              color="#e94560"
-            />
-            <View style={styles.divider} />
-            <SettingItem
-              icon="moon-outline"
-              label="Mode Gelap"
-              value={darkMode}
-              onValueChange={setDarkMode}
+            <SettingLink
+              icon="person-outline"
+              label="Edit Profil"
+              onPress={() => navigation.navigate('EditProfile')}
               color="#6c63ff"
-            />
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>KEAMANAN</Text>
-          <View style={styles.card}>
-            <SettingItem
-              icon="finger-print-outline"
-              label="Biometrik / FaceID"
-              value={biometric}
-              onValueChange={setBiometric}
-              color="#52b788"
-            />
-            <View style={styles.divider} />
-            <SettingItem
-              icon="lock-closed-outline"
-              label="Ganti Password"
-              type="link"
-              onPress={() => { }}
-              color="#f5a623"
             />
           </View>
         </View>
@@ -96,26 +49,23 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>LAINNYA</Text>
           <View style={styles.card}>
-            <SettingItem
+            <SettingLink
               icon="shield-checkmark-outline"
               label="Kebijakan Privasi"
-              type="link"
               onPress={() => navigation.navigate('Privacy')}
               color="#00b4d8"
             />
             <View style={styles.divider} />
-            <SettingItem
+            <SettingLink
               icon="help-circle-outline"
               label="Pusat Bantuan"
-              type="link"
               onPress={() => navigation.navigate('Help')}
               color="#8b5cf6"
             />
             <View style={styles.divider} />
-            <SettingItem
+            <SettingLink
               icon="information-circle-outline"
               label="Tentang Aplikasi"
-              type="link"
               onPress={() => navigation.navigate('About')}
               color="#64748b"
             />
@@ -127,7 +77,7 @@ export default function SettingsScreen() {
           <Text style={styles.logoutText}>Keluar Akun</Text>
         </TouchableOpacity>
 
-        <Text style={styles.version}>Versi 1.0.0 (Build 102)</Text>
+        <Text style={styles.version}>Versi 1.0.0</Text>
       </ScrollView>
     </View>
   );
@@ -135,9 +85,9 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: CREAM },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 50, paddingBottom: 20, paddingHorizontal: 16, backgroundColor: '#fff' },
-  headerTitle: { fontSize: 18, fontWeight: '800', color: NAVY, fontFamily: 'Georgia' },
-  backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', paddingTop: 52, paddingBottom: 24, paddingHorizontal: 20, backgroundColor: NAVY, gap: 12 },
+  headerTitle: { fontSize: 20, fontWeight: '700', color: '#fff' },
+  backBtn: { width: 38, height: 38, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center' },
   content: { padding: 20 },
   section: { marginBottom: 24 },
   sectionLabel: { fontSize: 11, fontWeight: '700', color: '#94a3b8', letterSpacing: 1.5, marginBottom: 12, marginLeft: 4 },

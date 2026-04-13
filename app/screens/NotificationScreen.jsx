@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useIsFocused } from '@react-navigation/native';
 import { useNotifications } from '../../hooks/useNotifications';
 
 export default function NotificationScreen() {
+  const isFocused = useIsFocused();
   const { notifications, loading, fetchNotifications, markAsRead, deleteNotification } = useNotifications();
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    fetchNotifications();
-  }, [fetchNotifications]);
+    if (isFocused) fetchNotifications();
+  }, [isFocused]);
 
   const onRefresh = async () => {
     setRefreshing(true);

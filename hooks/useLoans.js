@@ -2,6 +2,7 @@
 import { useState, useCallback } from 'react';
 import loanService from '../app/services/loanService';
 import { useToast } from '../app/context/ToastContext';
+import api from '../app/services/api';
 import { Alert } from 'react-native';
 
 export const useLoans = () => {
@@ -24,16 +25,38 @@ export const useLoans = () => {
         }
     }, []);
 
-    const requestBorrow = async (bookId, type = 'fisik') => {
+   const requestBorrow = async (bookId, loanType = 'digital') => {
+        if (borrowing) return null; // ✅ Cegah double-tap
+ 
         setBorrowing(true);
         try {
-            await loanService.requestLoan(bookId, type);
-            showToast('Permintaan peminjaman berhasil dikirim. Menunggu petugas.', 'success');
-            return true;
-        } catch (error) {
-            const msg = error.response?.data?.message || 'Gagal meminjam buku';
-            showToast(msg, 'error');
-            return false;
+            const res = await api.post(`/books/${bookId}/loan`, {
+                loan_type: loanType
+            });
+            return { success: true, data: res.data };
+        } catch (err) {
+            const status  = err?.response?.status;
+            const message = err?.response?.data?.userMessage  // ← dari interceptor 429
+                         ?? err?.response?.data?.message
+                         ?? 'Gagal memproses peminjaman.';
+ 
+            if (status === 429) {
+                return {
+                    success: false,
+                    code: 429,
+                    message: 'Terlalu banyak percobaan. Tunggu beberapa saat sebelum mencoba lagi.',
+                };
+            }
+ 
+            if (status === 422) {
+                return {
+                    success: false,
+                    code: 422,
+                    message: message, // pesan validasi dari Laravel
+                };
+            }
+ 
+            return { success: false, code: status, message };
         } finally {
             setBorrowing(false);
         }
@@ -55,16 +78,17 @@ export const useLoans = () => {
     };
 
     const requestReturn = async (loanId) => {
+        if (!loanId) return { success: false, message: 'ID peminjaman tidak valid.' };
+ 
         setLoading(true);
         try {
-            await loanService.requestReturn(loanId);
-            showToast('Permintaan pengembalian berhasil dikirim.', 'success');
-            await fetchLoans();
-            return true;
-        } catch (error) {
-            const msg = error.response?.data?.message || 'Gagal mengajukan pengembalian';
-            showToast(msg, 'error');
-            return false;
+            const res = await api.post(`/loans/${loanId}/return-request`);
+            return { success: true, data: res.data };
+        } catch (err) {
+            const message = err?.response?.data?.userMessage
+                         ?? err?.response?.data?.message
+                         ?? 'Gagal mengajukan pengembalian.';
+            return { success: false, message };
         } finally {
             setLoading(false);
         }

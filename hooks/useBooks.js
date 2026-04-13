@@ -39,25 +39,27 @@ export const useBooks = () => {
 
     const formatCategories = (data) => {
         return [
-            { id: 'All', label: 'Semua', icon: '✦' },
+            { id: 'All', label: 'Semua', icon: '📚' },
             ...data.map(c => ({
                 id: c.categories_id,
                 label: c.name,
-                icon: '◈'
+                icon: '📚'
             }))
         ];
     };
 
-    const fetchDiscovery = async (params = {}) => {
+    const fetchDiscovery = useCallback(async (params = {}) => {
         if (abortControllerRef.current) abortControllerRef.current.abort();
         abortControllerRef.current = new AbortController();
         const signal = abortControllerRef.current.signal;
 
+        console.log('📡 Fetch Discovery...', params);
         setLoading(true);
         try {
             const res = await bookService.getDiscovery(params, { signal });
-            const { trending, categories, books_page } = res.data;
+            console.log('✅ Discovery Success:', res.data);
 
+            const { trending, categories, books_page } = res.data;
             if (trending) setTrendingBooks(trending.slice(0, 5));
             if (categories) setCategories(formatCategories(categories));
             if (books_page) {
@@ -66,27 +68,28 @@ export const useBooks = () => {
             }
         } catch (error) {
             if (error.name !== 'CanceledError' && error.message !== 'canceled') {
-                console.error('Error fetching discovery data:', error);
+                console.error('❌ Discovery Error:', error);
             }
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     const fetchBooks = useCallback(async (params = {}) => {
         if (abortControllerRef.current) abortControllerRef.current.abort();
         abortControllerRef.current = new AbortController();
         const signal = abortControllerRef.current.signal;
 
+        console.log('📡 Fetch Books...', params);
         setLoading(true);
         try {
             const res = await bookService.getBooks(params, { signal });
-            // Handle Laravel pagination: extracted array is in data.data
+            console.log('✅ Books Success:', res.data);
             const booksArray = res.data?.data?.data || res.data?.data || [];
             setBooks(Array.isArray(booksArray) ? booksArray : []);
         } catch (error) {
             if (error.name !== 'CanceledError' && error.message !== 'canceled') {
-                console.error('Error fetching books:', error);
+                console.error('❌ Books Error:', error);
                 setBooks([]);
             }
         } finally {
@@ -98,7 +101,8 @@ export const useBooks = () => {
         setLoading(true);
         try {
             const res = await bookService.getBookmarks();
-            setBooks(res.data?.data || []);
+            const bookmarks = res.data?.data?.data || res.data?.data || [];
+            setBooks(Array.isArray(bookmarks) ? bookmarks : []);
         } catch (error) {
             console.error('Error fetching favorites:', error);
             setBooks([]);
@@ -107,15 +111,19 @@ export const useBooks = () => {
         }
     }, []);
 
-    const onRefresh = async (params = {}) => {
+    const onRefresh = useCallback(async () => {
         setRefreshing(true);
-        if (params.favorites) {
-            await fetchFavorites();
-        } else {
-            await fetchBooks(params);
+        try {
+            await fetchDiscovery();
+            await fetchBooks();
+        } catch (error) {
+            console.error('❌ Refresh Error:', error);
+        } finally {
+            setRefreshing(false);
         }
-        setRefreshing(false);
-    };
+    }, [fetchBooks, fetchDiscovery]);
+
+    
 
     return {
         books,

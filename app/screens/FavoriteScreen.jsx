@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useState, useRef, useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { useBooks } from '../../hooks/useBooks';
 import bookService from '../services/bookService';
 
@@ -21,14 +21,22 @@ const accentColors = ['#e94560', '#6c63ff', '#f5a623', '#52b788', '#00b4d8', '#f
 
 export default function FavoriteScreen() {
   const navigation = useNavigation();
+  const isFocused = useIsFocused();
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const { books: favorites, loading, refreshing, fetchFavorites, onRefresh } = useBooks();
+  const { books: favorites, loading, fetchFavorites } = useBooks();
   const [removingId, setRemovingId] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    fetchFavorites();
+    if (isFocused) fetchFavorites();
     Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
-  }, []);
+  }, [isFocused]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchFavorites();
+    setRefreshing(false);
+  };
 
   const handleRemove = async (bookmarkId) => {
     try {
@@ -110,7 +118,7 @@ export default function FavoriteScreen() {
       <StatusBar barStyle="light-content" backgroundColor={NAVY} />
       <FlatList
         data={favorites}
-        keyExtractor={(item) => item.bookmarks_id.toString()}
+        keyExtractor={(item) => item?.bookmarks_id?.toString() ?? Math.random().toString()}
         renderItem={renderItem}
         ListHeaderComponent={ListHeader}
         ListEmptyComponent={loading ? null : () => (
@@ -122,7 +130,7 @@ export default function FavoriteScreen() {
           </View>
         )}
         refreshing={refreshing}
-        onRefresh={() => onRefresh({ favorites: true })}
+        onRefresh={handleRefresh}
       />
     </View>
   );

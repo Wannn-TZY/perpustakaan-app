@@ -121,7 +121,7 @@ export default function MyLoansScreen() {
             ) : (
                 <FlatList
                     data={loans}
-                    keyExtractor={(item) => item.loans_id.toString()}
+                    keyExtractor={(item) => item?.loans_id?.toString() ?? Math.random().toString()}
                     renderItem={renderItem}
                     contentContainerStyle={styles.list}
                     ListEmptyComponent={() => (

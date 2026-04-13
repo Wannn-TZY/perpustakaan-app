@@ -3,11 +3,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useBookDetail } from '../../hooks/useBookDetail';
 import { useLoans } from '../../hooks/useLoans';
 import { View, Text, ScrollView, StatusBar, ActivityIndicator, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
 import ConfirmModal from '../../components/ConfirmModal';
 
 export default function BookDetailScreen({ route }) {
   const navigation = useNavigation();
+  const isFocused = useIsFocused();
   const { id } = route.params;
   const {
     book,
@@ -27,9 +28,12 @@ export default function BookDetailScreen({ route }) {
   const [newNote, setNewNote] = useState('');
   const [showReturnModal, setShowReturnModal] = useState(false);
 
+  // Auto refresh setiap kali screen di-focus
   useEffect(() => {
-    fetchDetail();
-  }, [fetchDetail]);
+    if (isFocused) {
+      fetchDetail();
+    }
+  }, [isFocused]);
 
   const handleAddNote = async () => {
     if (!newNote.trim()) return;
